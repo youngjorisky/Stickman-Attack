@@ -1,89 +1,38 @@
-# Stickman Destroyer — Inline Webpage Toy
+# Stickman Destroyer
 
-A single-file arcade toy: a cartoon stickman that walks around, picks targets, and obliterates text with exaggerated, fictional weapons. Built to sit **inside any webpage** as a floating overlay — it never touches the host page's layout.
+A small, fictional arcade toy that overlays a webpage with an animated stickman and playful text-destruction effects. It has two ways to run: open the standalone demo to try it locally, or load `stickman-destroyer/stickman.js` as a bookmarklet on another site.
 
-## Quick start
+## Try It Locally
 
-### Install into your site
+Open [`stickman-destroyer/index.html`](stickman-destroyer/index.html) directly in a browser. No server, install, or external assets are required. The demo includes its own sample webpage; use **RESET** to restore it after an attack.
 
-Option A — JSFiddle-style sandbox (nothing to deploy, just paste):
-1. Open https://jsfiddle.net / CodePen / StackBlitz
-2. Paste the full `index.html` in the HTML panel
-3. Add any demo content (paragraphs, cards, headings) into the body
-4. Run and play
+## Use The Bookmarklet
 
-Option B — Drop into your own page:
-1. Put the two files in the same folder as your site:
+1. Deploy the `stickman-destroyer` folder to Vercel. Set the Vercel project root to `stickman-destroyer` so `stickman.js` is available at the deployment root. If your project root is the repository instead, use `/stickman-destroyer/stickman.js` in the bookmarklet URL below.
+2. Create a browser bookmark and edit its name and URL. Paste this entire line into the URL/location field, replacing it with your deployment URL if needed:
+
+   ```javascript
+   javascript:(()=>{if(window.__textDestroyer){window.__textDestroyer.quit();return}const s=document.createElement('script');s.src='https://stickman-attack-nine.vercel.app/stickman.js?v='+Date.now();document.documentElement.appendChild(s)})()
    ```
-   your-site/
-     index.html          ← the demo page
-     stickman-tool.js    ← the weapon stickman engine (no DOM deps)
-   ```
-2. Add this to your page's `<head>`:
-   ```html
-   <link rel="stylesheet" href="stickman-tool.css">
-   <script src="stickman-tool.js" defer></script>
-   ```
-3. Add a container where the tool should mount:
-   ```html
-   <div id="stickman-container"></div>
-   ```
-4. Open the page. Done.
 
-### Link to a CDN (untrusted, no build step)
-```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/you/repo/stickman-tool.css">
-<script src="https://cdn.jsdelivr.net/gh/you/repo/stickman-tool.js" defer></script>
-```
+3. Open a regular webpage and click the bookmark. The stickman and compact control panel will appear over the page. Click the bookmark again, or use the panel's close button, to remove it and restore the page text.
 
-## How to use (keyboard + mouse)
+The `v=` value changes each time to avoid using a cached script. You can check the deployment by opening `https://stickman-attack-nine.vercel.app/stickman.js` directly; it should show JavaScript, not the demo HTML. Bookmarklets may be blocked on browser-internal pages, extension stores, or websites with strict Content Security Policies.
 
-### Mouse
-- **Left-click a text element** → it becomes the target (glows + pulses). The HUD updates to show the targets count and the currently highlighted target.
-- **Click a weapon** in the weapon selector → it becomes the active weapon (highlighted, shown in the HUD).
-- **Click `DESTROY TEXT`** (or press `Spacebar`) → the stickman runs to the target, aim, attacks, and disintegrates it.
-- **Click `RANDOM ATTACK`** → a random weapon is chosen and used on the active target.
-- **Press `A`** → random weapon on active target (keyboard shortcut).
-- **Press `R`** → reset everything (restore text, clear particles, stop chaos).
-- **Press `C`** → toggle Chaos Mode (auto-walk + auto-attack on any target).
-- **Click `DESTROY ALL`** → every target on the page is destroyed in sequence.
-- **Click `RESET`** → restore the original text, clear all particles, stop chaos, return the stickman to the center.
+## Controls
 
-### Keyboard
-| Key | Action |
-|-----|--------|
-| `1`–`9` | Select weapons 1–9 (the first nine in the list) |
-| `Space` / `Enter` | Activate destroy on the active target |
-| `R` | Reset |
-| `C` | Toggle Chaos Mode |
-| `M` | Mute / unmute sound |
-| `Numpad` or `A` | Random attack on active target |
-| `Escape` | Stop chaos mode |
+- Select a weapon from the emoji bar. The former Bomb weapon is now **Ink Splash**.
+- Click a word on the page to attack that word with the selected weapon.
+- **DESTROY TEXT** attacks a page target; **RANDOM ATTACK** chooses a random weapon.
+- **DESTROY ALL** runs a full-page barrage using the weapon set.
+- **RESET** restores destroyed text and clears effects.
+- **Chaos Mode** starts automatic attacks; use **STOP** to end it.
+- Click the minus button to collapse or expand the panel. Click the X button to remove the bookmarklet.
+- Use **Mute**, the volume slider, and **Reduced motion** to adjust audio and effects.
 
-### Controls
-- **Mouse**: Click a weapon in the selector, click a text block, or click the HUD/panel buttons.
-- **Keyboard**: `1`–`9` to pick a weapon, `Space` to destroy, `R` to reset, `C` for chaos, `M` for mute, `A` for random attack.
-- **Targeting**: Hover over a text element to preview which will be the target; click to lock it.
+Keyboard shortcuts: `1`-`9` select the first nine weapons, `0` selects Random, `Space` or `F` attacks the nearest visible target with the selected weapon, `WASD` or arrow keys move the stickman, and `Escape` stops Chaos Mode.
 
-## Project structure
+## Files
 
-```
-stickman-destroyer/
-  index.html          ← demo starter page (the "toy" shell)
-  stickman-tool.js    ← engine: stickman, weapons, particles, sounds (no DOM deps)
-  stickman-tool.css   ← player + HUD + panel styles (no layout impact)
-  README.md           ← this file
-```
-
-## Design notes
-
-- **No external URLs.** All assets are bundled (inline SVG for the stickman, data URIs for audio, no CDN).
-- **No layout impact.** The stickman and HUD are `position: fixed` overlays, fully detached from the host page.
-- **No global pollution.** The engine runs inside an IIFE/module scope; no new globals are added to `window` except the mount hook.
-- **Performance.** Particle counts are capped (400 max), requestAnimationFrame-driven, and the framework is intentionally vanilla HTML/CSS/JS with no framework overhead.
-
-## For the demo page
-
-The demo page (`index.html`) contains a sample article about the DOT AIGA pictograms (inspired by the image layout) so the stickman has real text to target. It includes the petroglyph, the AIGA fountain symbol, a cycling pictogram, a video thumbnail, and a sidebar — giving the stickman plenty of interesting targets.
-
-Change the demo text in `index.html` to whatever you like; the stickman engine is completely agnostic to the host page's content.
+- `stickman-destroyer/index.html` is the self-contained local demo, including its sample page, styles, and game code.
+- `stickman-destroyer/stickman.js` is the standalone script loaded by the bookmarklet. Its interface is isolated in a Shadow DOM so the host page's styles do not interfere.

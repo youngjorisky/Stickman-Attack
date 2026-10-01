@@ -12,6 +12,7 @@
   root.innerHTML = "<style>" + CSS + "</style>" + HTML;
   root.querySelector("style").textContent += `
     #panel{top:8px;right:8px;width:min(232px,calc(100vw - 16px));padding:9px;border-radius:11px;font-size:11px}
+    #hud{display:none!important}
     #panel h2,#hud h2{font-size:12px;letter-spacing:.4px}
     #hud{left:8px;top:58px;width:154px;padding:7px 9px;border-radius:10px;font-size:11px}
     #hud button,#panel button{padding:5px 7px;border-radius:7px;font-size:10px}
@@ -74,7 +75,7 @@
     const WEAPONS = {
       pistol: "Pistol",
       machine: "Machine Gun",
-      bomb: "Bomb",
+      bomb: "Ink Splash",
       rocket: "Rocket",
       laser: "Laser",
       hammer: "Hammer",
@@ -136,7 +137,7 @@
     for (const k in WEAPONS) sel.add(new Option(WEAPONS[k], k));
     sel.value = "rocket";
     const WEAPON_ICONS = {
-      pistol: "🔫", machine: "💥", bomb: "💣", rocket: "🚀", laser: "🔴",
+      pistol: "🔫", machine: "💥", bomb: "🎨", rocket: "🚀", laser: "🔴",
       hammer: "🔨", fireball: "🔥", lightning: "⚡", eraser: "🧽", meteor: "☄️", random: "🎲",
     };
     const weaponBar = document.createElement("div");
@@ -397,6 +398,37 @@
         life: [0.8, 1.6],
       });
     }
+    function inkSplat(x, y) {
+      sfx("pop");
+      ring(x, y, 76, "#2ec4b6", 420, 7);
+      burst(x, y, 34, {
+        cols: ["#2ec4b6", "#73eee0", "#5b8cff", "#fff"],
+        types: ["circ", "sq", "spark"],
+        sp: [2, 8],
+        g: 0.08,
+        r: [3, 9],
+      });
+      fx(460, (p) => {
+        c.save();
+        c.translate(x, y);
+        c.scale(0.45 + ease(p) * 0.8, 0.45 + ease(p) * 0.8);
+        c.globalAlpha = 0.9 * (1 - p);
+        c.fillStyle = "#2ec4b6";
+        c.beginPath();
+        for (let i = 0; i < 16; i++) {
+          const a = (i / 16) * Math.PI * 2;
+          const r = i % 2 ? 26 : 42;
+          const px = Math.cos(a) * r;
+          const py = Math.sin(a) * r * 0.72;
+          i ? c.lineTo(px, py) : c.moveTo(px, py);
+        }
+        c.closePath();
+        c.fill();
+        c.fillStyle = "#a9fff5";
+        circle(-8, -3, 8);
+        c.restore();
+      });
+    }
     function muzzle(h) {
       fx(90, (p) => {
         c.fillStyle = "#ffd23f";
@@ -527,14 +559,12 @@
           c.fillRect(24, -10, 5, 17);
           break;
         case "bomb":
-          c.fillStyle = INK;
-          circle(8, 0, 10);
-          c.strokeStyle = "#ff7b00";
-          c.lineWidth = 2;
-          c.beginPath();
-          c.moveTo(8, -9);
-          c.lineTo(12, -16);
-          c.stroke();
+          c.fillStyle = "#2ec4b6";
+          circle(10, 0, 9);
+          circle(18, -4, 4);
+          circle(4, -7, 3);
+          c.fillStyle = "#a9fff5";
+          circle(8, -2, 3);
           break;
         case "hammer":
           c.strokeStyle = "#8b5a2b";
@@ -773,7 +803,16 @@
             c.arc(p.x - 1, p.y - 1, p.r, Math.PI, Math.PI * 1.6);
             c.stroke();
           });
-        } else if (["bomb", "rocket", "fireball", "meteor"].includes(scar.type)) {
+        } else if (scar.type === "bomb") {
+          c.fillStyle = "rgba(46,196,182,.78)";
+          c.beginPath();
+          c.ellipse(0, 0, 13, 8, -0.25, 0, Math.PI * 2);
+          c.fill();
+          c.fillStyle = "rgba(169,255,245,.92)";
+          circle(-5, -2, 3);
+          circle(8, -7, 2.5);
+          circle(10, 5, 2);
+        } else if (["rocket", "fireball", "meteor"].includes(scar.type)) {
           c.fillStyle = "rgba(35,24,20,.56)";
           c.beginPath();
           c.ellipse(0, 0, 15, 9, -0.2, 0, Math.PI * 2);
@@ -925,16 +964,18 @@
           draw: (o) => {
             c.save();
             c.translate(o.x, o.y);
-            c.rotate(o.p * 12);
-            c.fillStyle = INK;
-            circle(0, 0, 10);
-            c.fillStyle = "#ff7b00";
-            circle(0, -11, 3);
+            c.rotate(o.p * 4);
+            c.fillStyle = "#2ec4b6";
+            circle(0, 0, 9);
+            circle(8, -5, 4);
+            circle(-7, -6, 3);
+            c.fillStyle = "#a9fff5";
+            circle(-2, -2, 3);
             c.restore();
           },
         });
-        boom(I.x, I.y, 1.3);
-        destroy(e, { smoke: 1 });
+        inkSplat(I.x, I.y);
+        destroy(e, { cols: ["#2ec4b6", "#73eee0", "#5b8cff"], damage: "bomb" });
       },
       async rocket(e, I, r, ep) {
         sm.held = "launcher";
@@ -1367,7 +1408,7 @@
             const r = e.getBoundingClientRect();
             const x = r.left + r.width / 2;
             const y = r.top + r.height / 2;
-            const icon = WEAPON_ICONS[key];
+            const color = PAL[(index - 1) % PAL.length];
             e.style.display = "inline-block";
             e.classList.add("td-hl");
             S.weapon = key;
@@ -1375,9 +1416,16 @@
               fx(390, (p) => {
                 c.save();
                 c.globalAlpha = 1 - p;
-                c.font = "22px sans-serif";
-                c.textAlign = "center";
-                c.fillText(icon, x + (sm.x - x) * (1 - p), y + (sm.y - y) * (1 - p));
+                c.strokeStyle = color;
+                c.fillStyle = color;
+                c.lineWidth = 3;
+                c.beginPath();
+                c.moveTo(sm.x, sm.y - 18);
+                c.lineTo(x + (sm.x - x) * (1 - p), y + (sm.y - y) * (1 - p));
+                c.stroke();
+                c.beginPath();
+                c.arc(x + (sm.x - x) * (1 - p), y + (sm.y - y) * (1 - p), 3, 0, Math.PI * 2);
+                c.fill();
                 c.restore();
               });
             }

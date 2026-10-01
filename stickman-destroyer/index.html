@@ -295,6 +295,76 @@
       min-width: 120px;
     }
   }
+  #panel {
+    top: 8px;
+    right: 8px;
+    width: min(232px, calc(100vw - 16px));
+    padding: 9px;
+    border-radius: 11px;
+    font-size: 11px;
+  }
+  #panel h2,
+  #hud h2 {
+    font-size: 12px;
+    letter-spacing: 0.4px;
+  }
+  #hud {
+    left: 8px;
+    right: auto;
+    bottom: 8px;
+    min-width: 145px;
+    padding: 7px 9px;
+    border-radius: 10px;
+    font-size: 11px;
+  }
+  #hud button,
+  #panel button {
+    padding: 5px 7px;
+    border-radius: 7px;
+    font-size: 10px;
+  }
+  #panel .row {
+    gap: 4px;
+    margin: 5px 0;
+  }
+  .weapon-strip {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
+    margin: 5px 0 7px;
+  }
+  .weapon-strip button {
+    height: 27px;
+    padding: 0 !important;
+    font-size: 16px !important;
+    line-height: 1;
+  }
+  .weapon-strip button.active {
+    outline: 2px solid var(--sun);
+    outline-offset: 1px;
+    filter: brightness(1.2);
+  }
+  #panel #pb > div[style] {
+    font-size: 9px !important;
+    line-height: 1.25 !important;
+  }
+  #combo {
+    left: 10px;
+    top: 46px;
+    font-size: 24px;
+  }
+  @media (max-width: 420px) {
+    #panel {
+      width: min(216px, calc(100vw - 12px));
+      top: 6px;
+      right: 6px;
+      padding: 7px;
+    }
+    #hud {
+      left: 6px;
+      bottom: 6px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -386,6 +456,7 @@
       busy: false,
       auto: false,
       chaos: false,
+      weapon: "rocket",
       ep: 0,
     };
     const CANCEL = {}; // thrown to abort running animations after Reset
@@ -433,11 +504,44 @@
     const sel = $("#weapon");
     for (const k in WEAPONS) sel.add(new Option(WEAPONS[k], k));
     sel.value = "rocket";
+    const WEAPON_ICONS = {
+      pistol: "🔫", machine: "💥", bomb: "💣", rocket: "🚀", laser: "🔴",
+      hammer: "🔨", fireball: "🔥", lightning: "⚡", eraser: "🧽", meteor: "☄️", random: "🎲",
+    };
+    const weaponBar = document.createElement("div");
+    weaponBar.className = "weapon-strip";
+    weaponBar.setAttribute("role", "toolbar");
+    weaponBar.setAttribute("aria-label", "Choose a weapon");
+    sel.closest(".row").style.display = "none";
+    $("#bd").parentElement.before(weaponBar);
+    for (const key of Object.keys(WEAPONS)) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = WEAPON_ICONS[key];
+      button.title = WEAPONS[key];
+      button.setAttribute("aria-label", WEAPONS[key]);
+      button.setAttribute("aria-pressed", key === sel.value ? "true" : "false");
+      button.classList.toggle("active", key === sel.value);
+      button.addEventListener("click", () => {
+        sel.value = key;
+        S.weapon = key;
+        hud();
+        syncWeaponBar();
+      });
+      weaponBar.append(button);
+    }
 
     function hud() {
       $("#hw").textContent = WEAPONS[sel.value];
       $("#ht").textContent = $("#pt").textContent = els.length;
       $("#hd").textContent = $("#pd").textContent = S.destroyed;
+    }
+    function syncWeaponBar() {
+      weaponBar.querySelectorAll("button").forEach((button) => {
+        const selected = button.getAttribute("aria-label") === WEAPONS[sel.value];
+        button.classList.toggle("active", selected);
+        button.setAttribute("aria-pressed", selected ? "true" : "false");
+      });
     }
 
     // ---------- Audio (synthesized locally with Web Audio) ----------
@@ -534,7 +638,8 @@
 
     // ---------- Effects: drawables, particles ----------
     const OBJ = new Set(),
-      P = [];
+      P = [],
+      SCARS = [];
     function fx(ms, fn) {
       const t0 = performance.now(),
         o = {
@@ -1005,6 +1110,82 @@
       c.fillStyle = "#fff";
       circle(o.x, o.y, 3);
     };
+    function addDamage(e, weapon) {
+      const r = e.getBoundingClientRect();
+      SCARS.push({
+        x: r.left + r.width / 2,
+        y: scrollY + r.top + r.height / 2,
+        type: weapon,
+        points: Array.from({ length: weapon === "machine" ? 4 : 2 }, () => ({
+          x: R(-Math.max(4, r.width / 3), Math.max(4, r.width / 3)),
+          y: R(-Math.max(3, r.height / 2), Math.max(3, r.height / 2)),
+          r: R(2, 4),
+        })),
+      });
+      if (SCARS.length > 120) SCARS.splice(0, SCARS.length - 120);
+    }
+    function drawScars() {
+      SCARS.forEach((scar) => {
+        const y = scar.y - scrollY;
+        if (y < -45 || y > H + 45) return;
+        c.save();
+        c.translate(scar.x, y);
+        if (scar.type === "pistol" || scar.type === "machine") {
+          scar.points.forEach((p) => {
+            c.fillStyle = "rgba(24,20,22,.78)";
+            circle(p.x, p.y, p.r + 1.5);
+            c.fillStyle = "rgba(5,5,8,.95)";
+            circle(p.x, p.y, p.r);
+            c.strokeStyle = "rgba(255,255,255,.35)";
+            c.lineWidth = 1;
+            c.beginPath();
+            c.arc(p.x - 1, p.y - 1, p.r, Math.PI, Math.PI * 1.6);
+            c.stroke();
+          });
+        } else if (["bomb", "rocket", "fireball", "meteor"].includes(scar.type)) {
+          c.fillStyle = "rgba(35,24,20,.56)";
+          c.beginPath();
+          c.ellipse(0, 0, 15, 9, -0.2, 0, Math.PI * 2);
+          c.fill();
+          c.fillStyle = "rgba(255,111,24,.78)";
+          circle(-2, 0, 5);
+          c.fillStyle = "rgba(255,219,88,.9)";
+          circle(0, -1, 2.2);
+        } else if (scar.type === "lightning") {
+          c.strokeStyle = "rgba(255,230,91,.95)";
+          c.lineWidth = 2;
+          c.beginPath();
+          c.moveTo(-3, -15); c.lineTo(3, -5); c.lineTo(-2, -2);
+          c.lineTo(5, 8); c.lineTo(1, 15);
+          c.moveTo(-2, -2); c.lineTo(-9, 3);
+          c.moveTo(3, -5); c.lineTo(10, -10);
+          c.stroke();
+        } else if (scar.type === "hammer") {
+          c.strokeStyle = "rgba(45,35,35,.82)";
+          c.lineWidth = 2;
+          c.beginPath();
+          c.moveTo(0, 0); c.lineTo(-8, -9); c.lineTo(-12, -13);
+          c.moveTo(-8, -9); c.lineTo(-4, -14);
+          c.moveTo(0, 0); c.lineTo(8, 7); c.lineTo(13, 10);
+          c.moveTo(8, 7); c.lineTo(10, 13);
+          c.stroke();
+        } else if (scar.type === "laser") {
+          c.strokeStyle = "rgba(255,55,121,.85)";
+          c.shadowColor = "#ff3979";
+          c.shadowBlur = 8;
+          c.lineWidth = 4;
+          c.beginPath(); c.moveTo(-14, 0); c.lineTo(14, 0); c.stroke();
+        } else if (scar.type === "eraser") {
+          c.strokeStyle = "rgba(255,255,255,.8)";
+          c.lineWidth = 7;
+          c.beginPath(); c.moveTo(-14, 2); c.lineTo(14, -2); c.stroke();
+        } else {
+          c.fillStyle = "rgba(35,28,30,.58)";
+          circle(0, 0, 8);
+        }
+        c.restore();
+      });
+    }
     async function shakeEl(e, ms, amp, ep) {
       await tween(
         ms,
@@ -1033,6 +1214,7 @@
           g: 0.3,
           r: [4, 9],
         });
+      if (!o.quiet || o.damage) addDamage(e, o.damage || S.weapon);
       if (o.smoke && !o.quiet)
         burst(r.left + r.width / 2, r.top + r.height / 2, 12, {
           cols: ["#999", "#ccc"],
@@ -1052,16 +1234,6 @@
         addCombo();
         sfx("pop");
         if (Math.random() < 0.5) msg("TEXT DESTROYED");
-      }
-      if (S.splash && !o.quiet) {
-        // Destroy All: the blast takes out nearby words too
-        const cx = r.left + r.width / 2,
-          cy = r.top + r.height / 2;
-        alive().forEach((w) => {
-          const q = w.getBoundingClientRect();
-          if (Math.hypot(q.left + q.width / 2 - cx, q.top + q.height / 2 - cy) < 170)
-            destroy(w, { quiet: 1 });
-        });
       }
     }
 
@@ -1446,6 +1618,7 @@
     // ---------- Attack orchestration ----------
     async function attack(e, key, ep) {
       if (key === "random") key = pick(KEYS);
+      S.weapon = key;
       e.scrollIntoView({ block: "center", behavior: S.reduce ? "auto" : "smooth" });
       await wait(S.reduce ? 40 : 480, ep);
       e.classList.add("hl");
@@ -1525,13 +1698,57 @@
         $("#stop").style.display = "none";
       }
     }
+    async function destroyAllBarrage() {
+      if (S.busy || S.auto) return;
+      S.busy = S.auto = true;
+      const ep = S.ep;
+      const batch = alive();
+      let index = 0;
+      msg("FULL ARSENAL!");
+      try {
+        batch.forEach((e) => {
+          const key = KEYS[index++ % KEYS.length];
+          const r = e.getBoundingClientRect();
+          const x = r.left + r.width / 2;
+          const y = r.top + r.height / 2;
+          e.style.display = "inline-block";
+          e.classList.add("hl");
+          if (index <= 90) {
+            fx(390, (p) => {
+              c.save();
+              c.globalAlpha = 1 - p;
+              c.font = "22px sans-serif";
+              c.textAlign = "center";
+              c.fillText(WEAPON_ICONS[key], x + (sm.x - x) * (1 - p), y + (sm.y - y) * (1 - p));
+              c.restore();
+            });
+          }
+        });
+        await wait(390, ep);
+        batch.forEach((e, i) => {
+          if (!e.isConnected || e.dataset.dead) return;
+          const key = KEYS[i % KEYS.length];
+          destroy(e, {
+            damage: key,
+            smoke: ["bomb", "rocket", "fireball", "meteor"].includes(key),
+          });
+        });
+        if (ep === S.ep) msg("ALL CLEAR!");
+      } catch (error) {
+        if (error !== CANCEL) console.error(error);
+      } finally {
+        if (ep === S.ep) S.busy = S.auto = false;
+      }
+    }
     function reset() {
       S.ep++;
       S.busy = S.auto = S.chaos = S.splash = false;
+      S.weapon = sel.value;
       $("#chaos").checked = false;
       $("#stop").style.display = "none";
       OBJ.clear();
       P.length = 0;
+      SCARS.length = 0;
       S.shake = S.flash = S.destroyed = S.combo = 0;
       page.style.transform = "";
       els.forEach((e) => {
@@ -1541,6 +1758,7 @@
           e.style.opacity =
           e.style.filter =
             "";
+        e.style.display = "";
         e.classList.remove("hl");
         delete e.dataset.dead;
       });
@@ -1579,6 +1797,7 @@
       }
       OBJ.forEach((o) => o.draw());
       drawParticles(dt);
+      drawScars();
       drawMan(now);
       if (S.flash > 0.02) {
         c.fillStyle = `rgba(255,255,255,${S.flash})`;
@@ -1600,13 +1819,7 @@
     $("#br").onclick = () => {
       if (!S.busy && !S.auto) one("random");
     };
-    $("#ba").onclick = () => {
-      S.splash = true;
-      series(
-        () => sel.value,
-        () => true,
-      ).finally(() => (S.splash = false));
-    };
+    $("#ba").onclick = destroyAllBarrage;
     $("#bx").onclick = reset;
     $("#chaos").onchange = (ev) => {
       S.chaos = ev.target.checked;
@@ -1622,7 +1835,11 @@
       $("#chaos").checked = false;
       $("#stop").style.display = "none";
     };
-    sel.onchange = hud;
+    sel.onchange = () => {
+      S.weapon = sel.value;
+      hud();
+      syncWeaponBar();
+    };
     $("#mute").onchange = $("#vol").oninput = setVol;
     $("#reduce").checked = S.reduce;
     $("#reduce").onchange = (ev) => (S.reduce = ev.target.checked);
@@ -1631,7 +1848,6 @@
       const b = $("#pb");
       b.style.display = b.style.display === "none" ? "" : "none";
     };
-    if (innerWidth < 640) $("#pb").style.display = "none";
 
     // ---------- Controls: keyboard & mouse ----------
     const K = { left: 0, right: 0, up: 0, down: 0 },
@@ -1679,7 +1895,9 @@
         const w = k === "0" ? "random" : KEYS[+k - 1];
         if (w) {
           sel.value = w;
+          S.weapon = w;
           hud();
+          syncWeaponBar();
           msg(WEAPONS[w].toUpperCase());
         }
       }
